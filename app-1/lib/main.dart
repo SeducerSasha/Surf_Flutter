@@ -1,5 +1,6 @@
 // ignore_for_file: public_member_api_docs, sort_constructors_first
 import 'package:flutter/material.dart';
+import 'package:grouped_list/grouped_list.dart';
 import 'package:surf_flutter_courses_template/data.dart';
 import 'package:surf_flutter_courses_template/model.dart';
 
@@ -54,6 +55,7 @@ class HeaderCheck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    /// Получаем и форматируем дату чека. В качестве даты взята текущая.
     final DateTime today = DateTime.now();
     final String dateTimeCheck =
         '${today.day.toString().padLeft(2, '0')}.${today.month.toString().padLeft(2, '0')}.${today.year.toString()} в ${today.hour.toString()}:${today.minute.toString()}';
@@ -81,6 +83,7 @@ class NavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    /// Создаем четыре кнопки навигации.
     return BottomNavigationBar(
       items: const [
         BottomNavigationBarItem(
@@ -124,21 +127,33 @@ class _BodyCheckState extends State<BodyCheck> {
   @override
   Widget build(BuildContext context) {
     /// Функция вызова обработки сортировки и перерисовки экрана.
-    void changeSorting(final SortingOptions newSorting) {
+    /// Использовалась в первом варианте с ListView.
+    void changeSorting(final SortingOptions selectedSorting) {
       /// Обрабатывать будем только если режим изменился.
-      if (sorting != newSorting) {
+      if (sorting != selectedSorting) {
         setState(() {
           /// Сортируем список.
-          sortData(newSorting);
+          sortData(selectedSorting);
         });
       }
     }
 
+    /// Если список пустой - отображается надпись.
+    if (listData.isEmpty) {
+      return const Center(
+        child: Text(
+          'Здесь пока ничего нет',
+          style: TextStyle(fontSize: 24),
+        ),
+      );
+    }
+
+    /// Построения тела чека.
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
         children: [
-          /// Кнопка вызова сортировки списка.
+          /// Шапка тела. Текст и кнопка вызова сортировки списка.
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -164,7 +179,8 @@ class _BodyCheckState extends State<BodyCheck> {
                     },
                   );
 
-                  changeSorting(sorting ?? SortingOptions.none);
+                  /// Перерисовываем экран после изменения сортировки.
+                  setState(() {});
                 },
                 child: Container(
                   padding: const EdgeInsets.all(4),
@@ -173,20 +189,23 @@ class _BodyCheckState extends State<BodyCheck> {
                   decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(6),
                       color: const Color(0xFFF1F1F1)),
-                  child: Stack(alignment: Alignment.center, children: [
-                    const Icon(Icons.sort),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Icon(Icons.sort),
 
-                    /// Если сортировка установлена - выводим признак на кнопке.
-                    sorting == SortingOptions.none
-                        ? const SizedBox.shrink()
-                        : const Align(
-                            alignment: Alignment.bottomRight,
-                            child: Badge(
-                              backgroundColor: colorGreen,
-                              smallSize: 8,
+                      /// Если сортировка установлена - выводим признак на кнопке.
+                      sorting == SortingOptions.none
+                          ? const SizedBox.shrink()
+                          : const Align(
+                              alignment: Alignment.bottomRight,
+                              child: Badge(
+                                backgroundColor: colorGreen,
+                                smallSize: 8,
+                              ),
                             ),
-                          ),
-                  ]),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -196,7 +215,11 @@ class _BodyCheckState extends State<BodyCheck> {
           ),
 
           /// Список продуктов чека.
-          const ListViewBody(),
+          /// /////////////////////////////////////////////////////////////////////////////////////
+          /// А почему, когда ставишь const - список не перерисовывается после изменения сортировки
+          /// при вызове setState?
+          /// /////////////////////////////////////////////////////////////////////////////////////
+          ListViewBody(),
 
           /// Подвал чека с итогами.
           const FooterBody(),
@@ -206,7 +229,7 @@ class _BodyCheckState extends State<BodyCheck> {
   }
 }
 
-/// Модально окно со списком сортивовок.
+/// Модальное окно со списком сортивовок.
 class SotringBottomSheet extends StatefulWidget {
   const SotringBottomSheet({super.key});
 
@@ -224,6 +247,8 @@ class _SotringBottomSheetState extends State<SotringBottomSheet> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+
+          /// Выводим возможные варианты сортировок
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -423,12 +448,48 @@ class _ListViewBodyState extends State<ListViewBody> {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: ListView.builder(
-        itemCount: listData.length,
-        itemBuilder: (context, index) => ProductItem(
-          product: listData[index],
+      /// Используется пакет "grouped_list" для группировки данных.
+      child: GroupedListView(
+        elements: listData,
+        groupBy: (element) => element.category.name,
+        groupSeparatorBuilder: (String value) => Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Divider(),
+              Text(
+                value,
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
         ),
+        itemBuilder: (context, element) => ProductItem(product: element),
+        itemComparator: (a, b) {
+          /// Сортировка товаров в зависмости от выбранной сортировки.
+          if (sorting == SortingOptions.nameAZ) {
+            return a.title.compareTo(b.title);
+          } else if (sorting == SortingOptions.nameZA) {
+            return b.title.compareTo(a.title);
+          } else if (sorting == SortingOptions.priceAsc) {
+            return a.price.compareTo(b.price);
+          } else if (sorting == SortingOptions.priceDesc) {
+            return b.price.compareTo(a.price);
+          } else {
+            return a.title.compareTo(b.title);
+          }
+        },
       ),
+
+      /// Первый вариант с ListView.
+      // child: ListView.builder(
+      //   itemCount: listData.length,
+      //   itemBuilder: (context, index) => ProductItem(
+      //     product: listData[index],
+      //   ),
+      // ),
     );
   }
 }
@@ -453,18 +514,32 @@ class ProductItem extends StatelessWidget {
             height: 68,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              color: Colors.amber,
+              //color: Colors.amber,
             ),
-            child: const SizedBox(
-              width: 68,
-              height: 68,
-            ),
-            // child: Image.network(
+
+            /// Временная заглушка.
+            /// Пока идет верстка и отладка, чтобы каждый раз не тащить картинки из сети
+            // child: const SizedBox(
             //   width: 68,
             //   height: 68,
-            //   product.imageUrl,
-            //   fit: BoxFit.contain,
             // ),
+            child: Image.network(
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return const Center(child: CircularProgressIndicator());
+              },
+              width: 68,
+              height: 68,
+              product.imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Image.asset(
+                  'assets/restaurant.png',
+                  width: 68,
+                  height: 68,
+                );
+              },
+            ),
           ),
           const SizedBox(
             width: 12,
